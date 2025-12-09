@@ -915,12 +915,16 @@ QList<QString> reorderPropertyDefsBySourceOrder(DomItem propertyDefs, const QHas
 void QmlObject::writeOutSortedPropertyDefinition(const DomItem &self, OutWriter &ow,
                                                  QSet<QString> &mergedDefBinding, const QHash<QString, int> &pathRank) const
 {
+    bool preserve = ow.lineWriter.options().preserveRelativeOrder;
+
     DomItem propertyDefs = field(self, Fields::propertyDefs);
     DomItem bindings = field(self, Fields::bindings);
 
     QStringList sortedKeys = propertyDefs.sortedKeys();
 
-    sortedKeys = reorderPropertyDefsBySourceOrder(propertyDefs, pathRank, sortedKeys);
+    if (preserve) {
+        sortedKeys = reorderPropertyDefsBySourceOrder(propertyDefs, pathRank, sortedKeys);
+    }
 
     for (const QString &defName : sortedKeys) {
         const auto pDefs = propertyDefs.key(defName).values();
@@ -1054,6 +1058,7 @@ static QList<DomItem> reorderBySourceOrder(const QList<DomItem> &items,
 void QmlObject::writeOutSortedAttributes(const DomItem &self, OutWriter &ow,
                                          const DomItem &component) const
 {
+    bool preserve = ow.lineWriter.options().preserveRelativeOrder;
     int spacerId = 0;
     quint32 counter = ow.counter();
 
@@ -1092,7 +1097,13 @@ void QmlObject::writeOutSortedAttributes(const DomItem &self, OutWriter &ow,
     if (counter != ow.counter())
         spacerId = ow.addNewlinesAutospacerCallback(2);
 
-    const auto [signalList, methodList] = splitSignalsAndMethods(field(self, Fields::methods));
+    auto [signalList, methodList] = splitSignalsAndMethods(field(self, Fields::methods));
+
+    if (preserve) {
+        signalList = reorderBySourceOrder(signalList, pathRank);
+        methodList = reorderBySourceOrder(methodList, pathRank);
+    }
+
     for (const auto &sig : std::as_const(signalList)) {
         ow.ensureNewline();
         sig.writeOut(ow);
@@ -1116,19 +1127,20 @@ void QmlObject::writeOutSortedAttributes(const DomItem &self, OutWriter &ow,
     ow.removeTextAddCallback(spacerId);
 
     DomItem bindings = field(self, Fields::bindings);
-    const auto [normalBindings, signalHandlers, delayedBindings] =
+    auto [normalBindings, signalHandlers, delayedBindings] =
             splitBindings(bindings, mergedDefBinding);
+
+    if (preserve) {
+        normalBindings = reorderBySourceOrder(normalBindings, pathRank);
+        signalHandlers = reorderBySourceOrder(signalHandlers, pathRank);
+        delayedBindings = reorderBySourceOrder(delayedBindings, pathRank);
+    }
 
     if (counter != ow.counter())
         spacerId = ow.addNewlinesAutospacerCallback(2);
 
-    auto unsorted_stuff = reorderBySourceOrder(normalBindings, pathRank);
-    //qDebug() << "unsorted stuff:";
-    //for (auto &b : unsorted_stuff) {
-    //    qDebug() << "thing" << b.field(Fields::name).value().toString();
-    //}
 
-    for (const auto &b : std::as_const(unsorted_stuff))
+    for (const auto &b : std::as_const(normalBindings))
         b.writeOut(ow);
     ow.removeTextAddCallback(spacerId);
 
@@ -1141,6 +1153,7 @@ void QmlObject::writeOutSortedAttributes(const DomItem &self, OutWriter &ow,
 
     if (counter != ow.counter())
         spacerId = ow.addNewlinesAutospacerCallback(2);
+
     for (const auto &b : std::as_const(signalHandlers))
         b.writeOut(ow);
     ow.removeTextAddCallback(spacerId);

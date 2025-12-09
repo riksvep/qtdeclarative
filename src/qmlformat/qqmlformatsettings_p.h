@@ -28,6 +28,7 @@ public:
     static const inline QLatin1StringView s_indentWidthSetting = QLatin1String("IndentWidth");
     static const inline QLatin1StringView s_maxColumnWidthSetting = QLatin1String("MaxColumnWidth");
     static const inline QLatin1StringView s_normalizeSetting = QLatin1String("NormalizeOrder");
+    static const inline QLatin1StringView s_preserveRelativeOrder = QLatin1String("PreserveRelativeOrder");
     static const inline QLatin1StringView s_newlineSetting = QLatin1String("NewlineType");
     static const inline QLatin1StringView s_objectsSpacingSetting = QLatin1String("ObjectsSpacing");
     static const inline QLatin1StringView s_functionsSpacingSetting = QLatin1String("FunctionsSpacing");

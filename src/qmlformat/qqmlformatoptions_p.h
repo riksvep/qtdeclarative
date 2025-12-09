@@ -69,6 +69,8 @@ public:
         m_options.attributesSequence =
                 (normalize ? AttributesSequence::Normalize : AttributesSequence::Preserve);
     }
+    bool preserveRelativeOrderEnabled() { return m_options.preserveRelativeOrder; }
+    void setPreserveRelativeOrderEnabled(bool preserve) { m_options.preserveRelativeOrder = preserve; }
     bool objectsSpacing() const { return m_options.objectsSpacing; }
     void setObjectsSpacing(bool spacing) { m_options.objectsSpacing = spacing; }
     bool functionsSpacing() const { return m_options.functionsSpacing; }
@@ -141,6 +143,7 @@ public:
         IndentWidth,
         MaxColumnWidth,
         NormalizeOrder,
+        PreserveRelativeOrder,
         NewlineType,
         ObjectsSpacing,
         FunctionsSpacing,

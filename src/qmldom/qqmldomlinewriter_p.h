@@ -98,6 +98,7 @@ public:
     TrailingSpace stringTrailingSpace = TrailingSpace::Preserve;
     FormatOptions formatOptions;
     AttributesSequence attributesSequence = AttributesSequence::Normalize;
+    bool preserveRelativeOrder = false;
     bool objectsSpacing = false;
     bool functionsSpacing = false;
     bool sortImports = false;

@@ -10,6 +10,7 @@ QQmlFormatSettings::QQmlFormatSettings(const QString &toolName) : QQmlToolingSet
     addOption(s_indentWidthSetting, 4);
     addOption(s_maxColumnWidthSetting, -1);
     addOption(s_normalizeSetting, false);
+    addOption(s_preserveRelativeOrder, false);
     addOption(s_newlineSetting, QStringLiteral("native"));
     addOption(s_objectsSpacingSetting, false);
     addOption(s_functionsSpacingSetting, false);

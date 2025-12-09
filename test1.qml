@@ -27,11 +27,24 @@ test3: 3 // comment on test3
      border.color: "red"
     border.width: 2
 
-
+signal asignal1
+signal asignal3
+            signal asignal2
 
     function onValueChanged() {
         doStuff()
+        a(); b()
     }
+    onAbc: {
+        doOtherThings()
+    }
+    function onAthing() {
+        // stuff
+    }
+    function onCthing(){
+
+    }
+    function onBthing() {}
 
 Item2 { }Item3 { }
 }
