@@ -45,8 +45,25 @@ void IndentingLineWriter::willCommit()
 void IndentingLineWriter::reindentAndSplit(const QString &eol, bool eof)
 {
     // maybe re-indent
-    if (m_reindent && m_columnNr == 0)
-        setLineIndent(fStatus().indentLine());
+    if (m_reindent && m_columnNr == 0) {
+        int indentAmount = fStatus().indentLine();
+
+        // Check if the line starts with * (star-style block comment line)
+        // If so, add one extra space to preserve the * alignment
+        // Find first non-space character
+        int firstNonSpace = 0;
+        while (firstNonSpace < m_currentLine.size()
+               && m_currentLine.at(firstNonSpace).isSpace())
+            ++firstNonSpace;
+
+        // If it's a * (including */ which closes the comment), add extra space
+        if (firstNonSpace < m_currentLine.size()
+            && m_currentLine.at(firstNonSpace) == QLatin1Char('*')) {
+            indentAmount += 1;
+        }
+
+        setLineIndent(indentAmount);
+    }
 
     if (!eol.isEmpty() || eof)
         handleTrailingSpace();

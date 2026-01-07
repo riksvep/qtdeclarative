@@ -1,3 +1,7 @@
+/*
+ * Some Copyright thing
+ * using *-style block comment
+ */
 import QtQuick
 import QtQuick.Layouts
 
@@ -8,7 +12,11 @@ Item {
     property var test1b
     test2: 2
 
-
+    /*
+     * This is a test comment
+     * with multiple lines
+     * using star style
+     */
     enum MyEnum {
         HELLO = 20,
         WORLD = 40,
@@ -23,7 +31,12 @@ test3: 3 // comment on test3
     d: 1
      b: 2
      f: 3
-    a: 4
+
+/*
+ * This is a test comment
+ * on multiple lines for "a"
+ */
+a: 4
      border.color: "red"
     border.width: 2
 
