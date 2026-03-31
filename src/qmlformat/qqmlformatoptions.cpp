@@ -100,6 +100,11 @@ void QQmlFormatOptions::applySettings(const QQmlFormatSettings &settings)
         setNormalizeEnabled(settings.value(QQmlFormatSettings::s_normalizeSetting).toBool());
     }
 
+    if (!isMarked(Settings::PreserveRelativeOrder)
+        && settings.isSet(QQmlFormatSettings::s_preserveRelativeOrder)) {
+        setPreserveRelativeOrderEnabled(settings.value(QQmlFormatSettings::s_preserveRelativeOrder).toBool());
+    }
+
     if (!isMarked(Settings::NewlineType) && settings.isSet(QQmlFormatSettings::s_newlineSetting)) {
         setNewline(QQmlFormatOptions::parseEndings(
                 settings.value(QQmlFormatSettings::s_newlineSetting).toString()));
@@ -215,6 +220,8 @@ QQmlFormatOptions QQmlFormatOptions::buildCommandLineOptions(const QStringList &
     parser.addOption(QCommandLineOption({ "n"_L1, "normalize"_L1 },
                                         QStringLiteral("Reorders the attributes of the objects "
                                                        "according to the QML Coding Guidelines.")));
+    parser.addOption(QCommandLineOption({ "p"_L1, "preserveRelativeOrder"_L1 },
+                                        QStringLiteral("Preserves relative order of attributes within its group (only works with normalize option)")));
 
 
     parser.addOption(QCommandLineOption(
@@ -317,6 +324,10 @@ QQmlFormatOptions QQmlFormatOptions::buildCommandLineOptions(const QStringList &
     if (parser.isSet("normalize"_L1)) {
         options.mark(Settings::NormalizeOrder);
         options.setNormalizeEnabled(true);
+    }
+    if (parser.isSet("preserveRelativeOrder"_L1)) {
+        options.mark(Settings::PreserveRelativeOrder);
+        options.setPreserveRelativeOrderEnabled(true);
     }
     if (parser.isSet("objects-spacing"_L1)) {
         options.mark(Settings::ObjectsSpacing);

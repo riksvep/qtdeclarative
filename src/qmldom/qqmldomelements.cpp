@@ -875,15 +875,61 @@ void QmlObject::writeOutSortedEnumerations(const DomItem &component, OutWriter &
     }
 }
 
-void QmlObject::writeOutSortedPropertyDefinition(const DomItem &self, OutWriter &ow,
-                                                 QSet<QString> &mergedDefBinding) const
+QList<QString> reorderPropertyDefsBySourceOrder(DomItem propertyDefs, const QHash<QString, int> &pathRank, QStringList sortedKeys)
 {
+    // Find DomItem in pathRank
+    auto rankOfItem = [&](const DomItem &it) -> int {
+        return pathRank.value(it.pathFromOwner().toString(),
+                            std::numeric_limits<int>::max());
+    };
+
+    QHash<QString,int> nameMinRankCache;
+    nameMinRankCache.reserve(propertyDefs.size());
+
+    // For all property definitions of a property, find its minimum rank
+    auto earliestRankForName = [&](const QString &name) -> int {
+        if (auto it = nameMinRankCache.constFind(name); it != nameMinRankCache.constEnd())
+            return *it;
+
+        int best = std::numeric_limits<int>::max();
+        const QList<DomItem> defs = propertyDefs.key(name).values();
+        for (const DomItem &d : defs)
+            best = std::min(best, rankOfItem(d));
+
+        nameMinRankCache.insert(name, best);
+        return best;
+    };
+
+    // Sort the list of property names using the rank (order in source)
+    std::stable_sort(sortedKeys.begin(), sortedKeys.end(),
+                 [&](const QString &a, const QString &b) {
+                     const int ra = earliestRankForName(a);
+                     const int rb = earliestRankForName(b);
+                     if (ra != rb) return ra < rb;
+                     return a < b; // deterministic fallback
+                 });
+
+    return sortedKeys;
+}
+
+void QmlObject::writeOutSortedPropertyDefinition(const DomItem &self, OutWriter &ow,
+                                                 QSet<QString> &mergedDefBinding, const QHash<QString, int> &pathRank) const
+{
+    bool preserve = ow.lineWriter.options().preserveRelativeOrder;
+
     DomItem propertyDefs = field(self, Fields::propertyDefs);
     DomItem bindings = field(self, Fields::bindings);
 
-    for (const QString &defName : propertyDefs.sortedKeys()) {
+    QStringList sortedKeys = propertyDefs.sortedKeys();
+
+    if (preserve) {
+        sortedKeys = reorderPropertyDefsBySourceOrder(propertyDefs, pathRank, sortedKeys);
+    }
+
+    for (const QString &defName : sortedKeys) {
         const auto pDefs = propertyDefs.key(defName).values();
         for (const auto &pDef : pDefs) {
+            //qDebug() << "path thing:" << pDef.pathFromOwner().toString();
             const PropertyDefinition *pDefPtr = pDef.as<PropertyDefinition>();
             Q_ASSERT(pDefPtr);
             DomItem b;
@@ -976,9 +1022,43 @@ splitBindings(const DomItem &bindings, const QSet<QString> &mergedDefBinding)
     return std::make_tuple(normalBindings, signalHandlers, delayedBindings);
 }
 
+static QList<DomItem> reorderBySourceOrder(const QList<DomItem> &items,
+                                           const QHash<QString, int> &pathRank)
+{
+    // 1) Rank DOM items by their path in the ORIGINAL parse order.
+
+    // 2) Attach ranks to your input list.
+    struct Node {
+        DomItem it;
+        int rank;
+        QString name; // tie-breaker, deterministic
+    };
+    QVector<Node> tmp; tmp.reserve(items.size());
+    for (const DomItem &it : items) {
+        const QString p = it.pathFromOwner().toString();
+        const int r = pathRank.contains(p) ? pathRank.value(p)
+                                           : std::numeric_limits<int>::max();
+        const QString nm = it.field(Fields::name).value().toString();
+        tmp.push_back(Node{it, r, nm});
+    }
+
+    // 3) Stable sort by original rank; unknowns sink to the end, alpha tiebreaker.
+    std::stable_sort(tmp.begin(), tmp.end(),
+                     [](const Node &a, const Node &b) {
+                         if (a.rank != b.rank) return a.rank < b.rank;
+                         return a.name < b.name;
+                     });
+
+    // 4) Strip ranks.
+    QList<DomItem> out; out.reserve(tmp.size());
+    for (const Node &n : tmp) out.append(n.it);
+    return out;
+}
+
 void QmlObject::writeOutSortedAttributes(const DomItem &self, OutWriter &ow,
                                          const DomItem &component) const
 {
+    bool preserve = ow.lineWriter.options().preserveRelativeOrder;
     int spacerId = 0;
     quint32 counter = ow.counter();
 
@@ -988,14 +1068,42 @@ void QmlObject::writeOutSortedAttributes(const DomItem &self, OutWriter &ow,
     if (counter != ow.counter() || !idStr().isEmpty())
         spacerId = ow.addNewlinesAutospacerCallback(2);
 
+    //QHash<QString,int> firstPropRank;
+    //{
+    //    const auto ord = orderOfAttributes(self, component); // original source order
+    //    for (int i = 0; i < ord.size(); ++i) {
+    //        const DomItem &it = ord[i].second;
+    //        if (it.internalKind() == DomType::PropertyDefinition) {
+    //            const QString name = it.field(Fields::name).value().toString();
+    //            if (!firstPropRank.contains(name)) firstPropRank.insert(name, i);
+    //        }
+    //    }
+    //}
+
+    const auto ord = orderOfAttributes(self, component); // original source order
+    QHash<QString,int> pathRank;
+    pathRank.reserve(ord.size());
+    {
+        for (int i = 0; i < ord.size(); ++i) {
+            const DomItem &it = ord[i].second;
+            pathRank.insert(it.pathFromOwner().toString(), i);
+        }
+    }
+
     QSet<QString> mergedDefBinding;
-    writeOutSortedPropertyDefinition(self, ow, mergedDefBinding);
+    writeOutSortedPropertyDefinition(self, ow, mergedDefBinding, pathRank);
 
     ow.removeTextAddCallback(spacerId);
     if (counter != ow.counter())
         spacerId = ow.addNewlinesAutospacerCallback(2);
 
-    const auto [signalList, methodList] = splitSignalsAndMethods(field(self, Fields::methods));
+    auto [signalList, methodList] = splitSignalsAndMethods(field(self, Fields::methods));
+
+    if (preserve) {
+        signalList = reorderBySourceOrder(signalList, pathRank);
+        methodList = reorderBySourceOrder(methodList, pathRank);
+    }
+
     for (const auto &sig : std::as_const(signalList)) {
         ow.ensureNewline();
         sig.writeOut(ow);
@@ -1019,23 +1127,33 @@ void QmlObject::writeOutSortedAttributes(const DomItem &self, OutWriter &ow,
     ow.removeTextAddCallback(spacerId);
 
     DomItem bindings = field(self, Fields::bindings);
-    const auto [normalBindings, signalHandlers, delayedBindings] =
+    auto [normalBindings, signalHandlers, delayedBindings] =
             splitBindings(bindings, mergedDefBinding);
+
+    if (preserve) {
+        normalBindings = reorderBySourceOrder(normalBindings, pathRank);
+        signalHandlers = reorderBySourceOrder(signalHandlers, pathRank);
+        delayedBindings = reorderBySourceOrder(delayedBindings, pathRank);
+    }
 
     if (counter != ow.counter())
         spacerId = ow.addNewlinesAutospacerCallback(2);
+
+
     for (const auto &b : std::as_const(normalBindings))
         b.writeOut(ow);
     ow.removeTextAddCallback(spacerId);
 
     if (counter != ow.counter())
         spacerId = ow.addNewlinesAutospacerCallback(2);
+
     for (const auto &b : std::as_const(delayedBindings))
         b.writeOut(ow);
     ow.removeTextAddCallback(spacerId);
 
     if (counter != ow.counter())
         spacerId = ow.addNewlinesAutospacerCallback(2);
+
     for (const auto &b : std::as_const(signalHandlers))
         b.writeOut(ow);
     ow.removeTextAddCallback(spacerId);
